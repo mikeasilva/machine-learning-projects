@@ -1,0 +1,248 @@
+---
+title: "Titanic Survivor Case Study"
+subtitle: "A Comparison of Classification Algorithms"
+author: "Mike Silva"
+date: "April 4th, 2015"
+output: html_document
+---
+
+# Introduction
+
+In this study we compare classification models built in R using different algorithms that predict the likelihood of emerging as a Titanic survivor.  It compares the models accuracy and execution time.
+
+## Data Used in This Study
+
+The survivor data used in this analyis is found in [Carnegie Mellon University Department of Statitics's StatLib](http://lib.stat.cmu.edu/S/Harrell/data/descriptions/titanic.html).  This dataset describes the survival status of individual passengers on the Titanic.  It should be noted that the crew are excluded from this dataset.
+
+The principal source for data about Titanic passengers is the *Encyclopedia Titanica* available online at http://atschool.eduweb.co.uk/phind. The datasets used here were begun by a variety of researchers. One of the original sources is Eaton & Haas (1994) *Titanic: Triumph and Tragedy*, Patrick Stephens Ltd, which includes a passenger list created by many researchers and edited by Michael A. Findlay.
+
+Thomas Cason of UVa has greatly updated and improved the original titanic passenger list.  This list does not have the crew but it does contain
+actual and estimated ages for almost 80% of the passengers.  To learn more about how the data was assempled, I would recommend you read http://lib.stat.cmu.edu/S/Harrell/data/descriptions/titanic3info.txt.
+
+In order to pull in the data the follwing commands were executed:
+
+```{r, message=FALSE}
+# Download Excel file if not present
+if(!file.exists('titanic3.xls')){
+  download.file('http://lib.stat.cmu.edu/S/Harrell/data/xls/titanic3.xls', 'titanic3.xls')
+}
+
+# Read the data into a data frame
+library(plyr) # This will be needed latter but needs to be loaded before dplyr
+library(dplyr)
+library(XLConnect)
+
+titanic <- loadWorkbook('titanic3.xls') %>%
+  readWorksheet(., sheet='titanic3')
+```
+
+There are `r nrow(titanic)` records in the dataset and `r ncol(titanic)` variables. The variables in the extracted dataset are `r names(titanic)`.  pclass refers to passenger class (1st, 2nd, 3rd), and is a proxy for socio-economic class. Age is in years and some infants had fractional values.  For clarity we will convert the survived variable from a boolean to a categorical.
+
+```{r, message=FALSE}
+titanic <- titanic %>%
+  mutate(survived = as.factor(ifelse(survived==1,'Yes','No')))
+```
+
+If you are unfamiliar with this dataset you can view the whole thing in the Appendix section of this paper.
+
+# Data Processing
+
+We want the models to based on characteristics of the passenger.  We will be removing the name of the individual, ticket number, cabin and home/destination variables as they do not have any predictive value.  The lifeboat and body identification number will also be dropped because they don't tell us much about the person.  We will also only select the records that have complete information.  Some of the variables are closely correlated (i.e. pclass and fare) but I have chosen to leave them in.
+
+```{r}
+study.variables <- c('pclass', 'survived', 'sex', 'age', 'sibsp', 'parch', 'fare', 'embarked')
+# Select the study variables and drop all other variables
+study.data <- titanic[, study.variables]
+# Remove the observations with NA's
+study.data <- study.data[complete.cases(study.data),]
+```
+
+The study dataset contains `r nrow(study.data)` and the `r ncol(study.data)` variables defined above.
+
+# Baseline Model - Women and Children First
+
+In order to evaluate the accuracy of a model I needed a baseline.  We know the people who survived the sinking of the Titanic were those who were able to get a spot on a life boat.  One general rule on who get's a spot is "women and children first."  I will use stictly apply this this rule as the baseline defining a child as a person under 18 years of age:
+
+```{r}
+# Women and Children First rule
+survived.rule <- function(age, sex){
+  if(sex == 'female' | age < 18){
+    return('Yes')
+  }
+  else{
+    return('No')
+  }
+}
+```
+
+I will then apply the baseline model to form predictions:
+
+```{r}
+start <- proc.time()
+baseline.predictions <- study.data %>%
+  select(age, sex) %>%
+  apply(., 1, function(x){survived.rule(x[1],x[2])})
+baseline.time <- proc.time() - start
+```
+
+I will then evaluate the accuracy of this baseline model by comparing the number of times it correctly predicted the outcome relative to the total number of cases:  
+
+```{r, message=FALSE}
+library(caret)
+baseline.confusion.matrix <- study.data %>%
+  select(survived) %>%
+  cbind(., baseline.predictions) %>%
+  mutate(truth = as.character(survived)) %>%
+  mutate(model = as.character(baseline.predictions)) %>%
+  mutate(count=1) %>%
+  xtabs(count~model+truth, data=.) %>%
+  confusionMatrix(.)
+
+baseline.confusion.matrix
+```
+
+## Reliability of the Baseline Model
+
+The "women and children first" model has an accuracy of `r round(baseline.confusion.matrix[[3]][1]*100,2)`% and a kappa of `r round(baseline.confusion.matrix[[3]][2]*100,2)`%.
+
+# Machine Learning Models
+Now that a baseline has been established we will compare it to other machine learning models and observe how it preforms against the baseline.  
+
+I will be using R's caret package to develop eight models.  Each model will have 3 repeats of a 10-fold cross validation or 30 results.  We will use a common random number seed to ensure that the models get the same data partitions and repeats.  We will compare the average accuracy and kappa of these models with the baseline discussed in the previous section.  The algorythms were selected in no specific order.
+
+```{r, message=FALSE}
+# Set up the 3 repeats and 10-forld cross validation
+study.control <- trainControl(method='repeatedcv', number=10, repeats=3)
+# Set the random number seed
+study.seed <- 12345
+```
+
+## Model 1: Random Forest
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+rf.model <- train(survived~., study.data, method='rf', trControl=study.control)
+rf.time <- proc.time() - start
+```
+
+## Model 2: Learning Vector Quantization
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+lvq.model <- train(survived~., study.data, method='lvq', trControl=study.control)
+lvq.time <- proc.time() - start
+```
+
+## Model 3: Support Vector Machine
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+svm.model <- train(survived~., study.data, method='svmRadial', trControl=study.control)
+svm.time <- proc.time() - start
+```
+
+## Model 4: Gradient Boosted Machine
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+gbm.model <- train(survived~., study.data, method='gbm', trControl=study.control, verbose=FALSE)
+gbm.time <- proc.time() - start
+```
+
+## Model 5: Naive Bayes
+```{r, message=FALSE, warning=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+nb.model <- train(survived~., study.data, method='nb', trControl=study.control)
+nb.time <- proc.time() - start
+```
+
+## Model 6: Neural Network
+```{r, message=FALSE, results='hide'}
+set.seed(study.seed)
+start <- proc.time()
+nnet.model <- train(survived~., study.data, method='nnet', trControl=study.control)
+nnet.time <- proc.time() - start
+```
+
+## Model 7: Classification and Regression Trees
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+rpart.model <- train(survived~., study.data, method='rpart', trControl=study.control)
+rpart.time <- proc.time() - start
+```
+
+## Model 8: K-Nearest Neighbors
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+knn.model <- train(survived~., study.data, method='knn', trControl=study.control)
+knn.time <- proc.time() - start
+```
+
+# Comparison of Machine Learning Models
+
+Now that the models have been build we can examing the results:
+
+```{r}
+results <- resamples(
+  list(
+    GBM=gbm.model, 
+    KNN=knn.model, 
+    LVQ=lvq.model, 
+    NB=nb.model, 
+    NNET=nnet.model, 
+    RF=rf.model, 
+    RPART=rpart.model, 
+    SVM=svm.model
+  )
+)
+
+summary(results)
+```
+
+
+```{r, echo=FALSE}
+bwplot(results)
+```
+
+Now let's compare the runtimes of these models.  First I will assemble the runtime information into a data frame.  I will need to scale up the baseline time because the runtimes for the other models represent the time needed to make 30 models:
+
+```{r}
+model.names <- c('Baseline', 'Gradient Boosted Machine', 'K Nearest Neighbors', 'Learning Vector Quantization', 'Naive Bayes', 'Neural Networks', 'Random Forest', 'Classification and Regression Tree','Support Vector Machine')
+user.self <- c(baseline.time[1]*30, gbm.time[1], knn.time[1], lvq.time[1], nb.time[1], nnet.time[1], rf.time[1], rpart.time[1], svm.time[1])
+sys.self <- c(baseline.time[2]*30, gbm.time[2], knn.time[2], lvq.time[2], nb.time[2], nnet.time[2], rf.time[2], rpart.time[2], svm.time[2])
+elapsed <- c(baseline.time[3]*30, gbm.time[3], knn.time[3], lvq.time[3], nb.time[3], nnet.time[3], rf.time[3], rpart.time[3], svm.time[3])
+
+runtimes <- data.frame(model.names, user.self, sys.self, elapsed)
+```
+
+# Appendix
+
+## Titanic Survivor Dataset
+
+```{r, echo=FALSE, message=FALSE}
+if (!require("DT")) devtools::install_github("rstudio/DT")
+library(DT)
+datatable(titanic, options = list(iDisplayLength = 10))
+```
+
+## Machine Learning Models
+
+```{r}
+gbm.model
+knn.model
+lvq.model
+nb.model
+nnet.model
+rf.model
+rpart.model
+svm.model
+```
+
+## Run Times
+
+```{r, echo=FALSE}
+datatable(runtimes, options = list(iDisplayLength = 9))
+```
