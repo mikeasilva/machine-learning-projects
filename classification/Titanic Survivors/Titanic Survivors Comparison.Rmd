@@ -8,7 +8,7 @@ output: html_document
 
 # Introduction
 
-In this study we compare classification models built in R using different algorithms that predict the likelihood of emerging as a Titanic survivor.  It compares the models accuracy and execution time.
+In this study we compare classification models built in R using different algorithms that predict the likelihood of emerging as a Titanic survivor.  It compares the models in terms of accuracy and execution time.  Given that a trade-off exists between the two, we present our comparison weighing each factor differently.  That way an individual can evaluate the model with their own willingness to spend some extra time in order to get a more accurate model.
 
 ## Data Used in This Study
 
@@ -57,7 +57,17 @@ study.data <- titanic[, study.variables]
 study.data <- study.data[complete.cases(study.data),]
 ```
 
-The study dataset contains `r nrow(study.data)` and the `r ncol(study.data)` variables defined above.
+The study dataset contains `r nrow(study.data)` and the `r ncol(study.data)` variables defined above.  The study data was divided into training and testing sets using an 80/20 split. In order to make these results reproducible, a random number seed is defined which will be used throughout this study.
+
+```{r, message=FALSE}
+library(caret)
+# Set the random number seed
+study.seed <- 12345
+set.seed(study.seed)
+in.train <- createDataPartition(y=study.data$survived, times=1, p=0.80, list=FALSE)
+training <- study.data[in.train,]
+testing <- study.data[-in.train,]
+```
 
 # Baseline Model - Women and Children First
 
@@ -79,7 +89,7 @@ I will then apply the baseline model to form predictions:
 
 ```{r}
 start <- proc.time()
-baseline.predictions <- study.data %>%
+baseline.predictions <- testing %>%
   select(age, sex) %>%
   apply(., 1, function(x){survived.rule(x[1],x[2])})
 baseline.time <- proc.time() - start
@@ -88,8 +98,7 @@ baseline.time <- proc.time() - start
 I will then evaluate the accuracy of this baseline model by comparing the number of times it correctly predicted the outcome relative to the total number of cases:  
 
 ```{r, message=FALSE}
-library(caret)
-baseline.confusion.matrix <- study.data %>%
+baseline.confusion.matrix <- testing %>%
   select(survived) %>%
   cbind(., baseline.predictions) %>%
   mutate(truth = as.character(survived)) %>%
@@ -103,7 +112,7 @@ baseline.confusion.matrix
 
 ## Reliability of the Baseline Model
 
-The "women and children first" model has an accuracy of `r round(baseline.confusion.matrix[[3]][1]*100,2)`% and a kappa of `r round(baseline.confusion.matrix[[3]][2]*100,2)`%.
+The "women and children first" model has an accuracy of `r round(baseline.confusion.matrix$overall[1]*100,2)`% and a kappa of `r round(baseline.confusion.matrix$overall[2]*100,2)`%.
 
 # Machine Learning Models
 Now that a baseline has been established we will compare it to other machine learning models and observe how it preforms against the baseline.  
@@ -111,18 +120,21 @@ Now that a baseline has been established we will compare it to other machine lea
 I will be using R's caret package to develop eight models.  Each model will have 3 repeats of a 10-fold cross validation or 30 results.  We will use a common random number seed to ensure that the models get the same data partitions and repeats.  We will compare the average accuracy and kappa of these models with the baseline discussed in the previous section.  The algorythms were selected in no specific order.
 
 ```{r, message=FALSE}
-# Set up the 3 repeats and 10-forld cross validation
-study.control <- trainControl(method='repeatedcv', number=10, repeats=3)
-# Set the random number seed
-study.seed <- 12345
+# Set up the 3 repeats and 10-fold cross validation
+study.folds <- 10
+study.repeats <- 3
+study.control <- trainControl(method='repeatedcv', number=study.folds, repeats=study.repeats)
 ```
 
 ## Model 1: Random Forest
 ```{r, message=FALSE}
 set.seed(study.seed)
 start <- proc.time()
-rf.model <- train(survived~., study.data, method='rf', trControl=study.control)
+rf.model <- train(survived~., training, method='rf', trControl=study.control)
+rf.prediction <- predict(rf.model, newdata=testing)
+rf.confusion.matrix <- confusionMatrix(rf.prediction, testing$survived)
 rf.time <- proc.time() - start
+rf.confusion.matrix
 ```
 
 ## Model 2: Learning Vector Quantization
@@ -130,7 +142,10 @@ rf.time <- proc.time() - start
 set.seed(study.seed)
 start <- proc.time()
 lvq.model <- train(survived~., study.data, method='lvq', trControl=study.control)
+lvq.prediction <- predict(lvq.model, newdata=testing)
+lvq.confusion.matrix <- confusionMatrix(lvq.prediction, testing$survived)
 lvq.time <- proc.time() - start
+lvq.confusion.matrix
 ```
 
 ## Model 3: Support Vector Machine
@@ -138,7 +153,10 @@ lvq.time <- proc.time() - start
 set.seed(study.seed)
 start <- proc.time()
 svm.model <- train(survived~., study.data, method='svmRadial', trControl=study.control)
+svm.prediction <- predict(svm.model, newdata=testing)
+svm.confusion.matrix <- confusionMatrix(svm.prediction, testing$survived)
 svm.time <- proc.time() - start
+svm.confusion.matrix
 ```
 
 ## Model 4: Gradient Boosted Machine
@@ -146,7 +164,10 @@ svm.time <- proc.time() - start
 set.seed(study.seed)
 start <- proc.time()
 gbm.model <- train(survived~., study.data, method='gbm', trControl=study.control, verbose=FALSE)
+gbm.prediction <- predict(gbm.model, newdata=testing)
+gbm.confusion.matrix <- confusionMatrix(gbm.prediction, testing$survived)
 gbm.time <- proc.time() - start
+gbm.confusion.matrix
 ```
 
 ## Model 5: Naive Bayes
@@ -154,7 +175,10 @@ gbm.time <- proc.time() - start
 set.seed(study.seed)
 start <- proc.time()
 nb.model <- train(survived~., study.data, method='nb', trControl=study.control)
+nb.prediction <- predict(nb.model, newdata=testing)
+nb.confusion.matrix <- confusionMatrix(nb.prediction, testing$survived)
 nb.time <- proc.time() - start
+nb.confusion.matrix
 ```
 
 ## Model 6: Neural Network
@@ -162,7 +186,10 @@ nb.time <- proc.time() - start
 set.seed(study.seed)
 start <- proc.time()
 nnet.model <- train(survived~., study.data, method='nnet', trControl=study.control)
+nnet.prediction <- predict(nnet.model, newdata=testing)
+nnet.confusion.matrix <- confusionMatrix(nnet.prediction, testing$survived)
 nnet.time <- proc.time() - start
+nnet.confusion.matrix
 ```
 
 ## Model 7: Classification and Regression Trees
@@ -170,7 +197,10 @@ nnet.time <- proc.time() - start
 set.seed(study.seed)
 start <- proc.time()
 rpart.model <- train(survived~., study.data, method='rpart', trControl=study.control)
+rpart.prediction <- predict(rpart.model, newdata=testing)
+rpart.confusion.matrix <- confusionMatrix(rpart.prediction, testing$survived)
 rpart.time <- proc.time() - start
+rpart.confusion.matrix
 ```
 
 ## Model 8: K-Nearest Neighbors
@@ -178,12 +208,42 @@ rpart.time <- proc.time() - start
 set.seed(study.seed)
 start <- proc.time()
 knn.model <- train(survived~., study.data, method='knn', trControl=study.control)
+knn.prediction <- predict(knn.model, newdata=testing)
+knn.confusion.matrix <- confusionMatrix(knn.prediction, testing$survived)
 knn.time <- proc.time() - start
+knn.confusion.matrix
 ```
 
 # Comparison of Machine Learning Models
 
-Now that the models have been build we can examing the results:
+Now that the models have been build we can examing the results.  First we need to compare the accuracy of the model.  We will examine both the accuracy and Cohen's kappa.
+
+```{r}
+baseline.program.time <- 1
+baseline.scaler <- study.folds * study.repeats
+
+model.name <- c('Baseline', 'Gradient Boosted Machine', 'K Nearest Neighbors', 'Learning Vector Quantization', 'Naive Bayes', 'Neural Networks', 'Random Forest', 'Classification and Regression Tree','Support Vector Machine')
+
+acuracy <- c(baseline.confusion.matrix$overall[1], gbm.confusion.matrix$overall[1], knn.confusion.matrix$overall[1],lvq.confusion.matrix$overall[1], nb.confusion.matrix$overall[1], nnet.confusion.matrix$overall[1], rf.confusion.matrix$overall[1], rpart.confusion.matrix$overall[1], svm.confusion.matrix$overall[1])
+
+kappa <- c(baseline.confusion.matrix$overall[2], gbm.confusion.matrix$overall[2], knn.confusion.matrix$overall[2],lvq.confusion.matrix$overall[2], nb.confusion.matrix$overall[2], nnet.confusion.matrix$overall[2], rf.confusion.matrix$overall[2], rpart.confusion.matrix$overall[2], svm.confusion.matrix$overall[2])
+
+user.self <- c((baseline.time[1]*baseline.scaler)+baseline.program.time, gbm.time[1], knn.time[1], lvq.time[1], nb.time[1], nnet.time[1], rf.time[1], rpart.time[1], svm.time[1])
+
+sys.self <- c((baseline.time[2]*baseline.scaler), gbm.time[2], knn.time[2], lvq.time[2], nb.time[2], nnet.time[2], rf.time[2], rpart.time[2], svm.time[2])
+
+elapsed <- c((baseline.time[3]*baseline.scaler)+baseline.program.time, gbm.time[3], knn.time[3], lvq.time[3], nb.time[3], nnet.time[3], rf.time[3], rpart.time[3], svm.time[3])
+
+compare <- data.frame(model.name, acuracy, kappa, user.self, sys.self, elapsed)
+```
+
+```{r, echo=FALSE}
+ggplot(data=compare, aes(x=model.name, y=acuracy*100)) + geom_bar(stat='identity') + coord_flip() + ggtitle('Figure 1: Model Acurately Predicted Survivorship') + theme(axis.title.x=element_blank(), axis.title.y=element_blank()) + scale_y_continuous(limits=c(0,100))
+```
+
+```{r, echo=FALSE}
+ggplot(data=compare, aes(x=model.name, y=kappa*100)) + geom_bar(stat='identity') + coord_flip() + ggtitle("Figure 2: Cohen's Kappa") + theme(axis.title.x=element_blank(), axis.title.y=element_blank()) +  scale_y_continuous(limits=c(0,100)) + ylab('Percent')
+```
 
 ```{r}
 results <- resamples(
@@ -207,15 +267,12 @@ summary(results)
 bwplot(results)
 ```
 
-Now let's compare the runtimes of these models.  First I will assemble the runtime information into a data frame.  I will need to scale up the baseline time because the runtimes for the other models represent the time needed to make 30 models:
+Now let's compare the runtimes of these models.  First I will assemble the runtime information into a data frame.  I will need to scale up the baseline time because the runtimes for the other models represent the time needed to make 30 models.  I will to this by multiplying the baseline runtime by thirty.  There was also time taken to program the model.  I will be generous and say it took a minute to program the survivor rule function:
 
 ```{r}
-model.names <- c('Baseline', 'Gradient Boosted Machine', 'K Nearest Neighbors', 'Learning Vector Quantization', 'Naive Bayes', 'Neural Networks', 'Random Forest', 'Classification and Regression Tree','Support Vector Machine')
-user.self <- c(baseline.time[1]*30, gbm.time[1], knn.time[1], lvq.time[1], nb.time[1], nnet.time[1], rf.time[1], rpart.time[1], svm.time[1])
-sys.self <- c(baseline.time[2]*30, gbm.time[2], knn.time[2], lvq.time[2], nb.time[2], nnet.time[2], rf.time[2], rpart.time[2], svm.time[2])
-elapsed <- c(baseline.time[3]*30, gbm.time[3], knn.time[3], lvq.time[3], nb.time[3], nnet.time[3], rf.time[3], rpart.time[3], svm.time[3])
 
-runtimes <- data.frame(model.names, user.self, sys.self, elapsed)
+
+runtimes <- data.frame(model.name, user.self, sys.self, elapsed)
 ```
 
 # Appendix
@@ -244,5 +301,10 @@ svm.model
 ## Run Times
 
 ```{r, echo=FALSE}
-datatable(runtimes, options = list(iDisplayLength = 9))
+datatable(runtimes, options = list(iDisplayLength = 9, searching=FALSE, paging=FALSE))
+```
+
+## Session Info
+```{r}
+sessionInfo()
 ```
