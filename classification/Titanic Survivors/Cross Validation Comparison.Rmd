@@ -1,0 +1,244 @@
+---
+title: "Titanic Survivor Case Study"
+subtitle: "A Comparison of Cross Validation Parameters"
+author: "Mike Silva"
+date: "April 9th, 2015"
+output: html_document
+---
+
+# Introduction
+
+In this study we compare random forest models built in R using the caret package that predict the likelihood of emerging as a Titanic survivor.  Different cross validation parameters will be used for each model.  We then compare the models in terms of accuracy and execution time.
+
+## Data Used in This Study
+
+The survivor data used in this analyis is found in [Carnegie Mellon University Department of Statitics's StatLib](http://lib.stat.cmu.edu/S/Harrell/data/descriptions/titanic.html).  This dataset describes the survival status of individual passengers on the Titanic.  It should be noted that the crew are excluded from this dataset.
+
+The principal source for data about Titanic passengers is the *Encyclopedia Titanica* available online at http://atschool.eduweb.co.uk/phind. The datasets used here were begun by a variety of researchers. One of the original sources is Eaton & Haas (1994) *Titanic: Triumph and Tragedy*, Patrick Stephens Ltd, which includes a passenger list created by many researchers and edited by Michael A. Findlay.
+
+Thomas Cason of UVa has greatly updated and improved the original titanic passenger list.  This list does not have the crew but it does contain
+actual and estimated ages for almost 80% of the passengers.  To learn more about how the data was assempled, I would recommend you read http://lib.stat.cmu.edu/S/Harrell/data/descriptions/titanic3info.txt.
+
+In order to pull in the data the follwing commands were executed:
+
+```{r, message=FALSE}
+# Download Excel file if not present
+if(!file.exists('titanic3.xls')){
+  download.file('http://lib.stat.cmu.edu/S/Harrell/data/xls/titanic3.xls', 'titanic3.xls')
+}
+
+# Read the data into a data frame
+library(plyr) # This will be needed latter but needs to be loaded before dplyr
+library(dplyr)
+library(XLConnect)
+
+titanic <- loadWorkbook('titanic3.xls') %>%
+  readWorksheet(., sheet='titanic3')
+```
+
+There are `r nrow(titanic)` records in the dataset and `r ncol(titanic)` variables. The variables in the extracted dataset are `r names(titanic)`.  pclass refers to passenger class (1st, 2nd, 3rd), and is a proxy for socio-economic class. Age is in years and some infants had fractional values.  For clarity we will convert the survived variable from a boolean to a categorical.
+
+```{r, message=FALSE}
+titanic <- titanic %>%
+  mutate(survived = as.factor(ifelse(survived==1,'Yes','No')))
+```
+
+If you are unfamiliar with this dataset you can view the whole thing in the Appendix section of this paper.
+
+# Data Processing
+
+We want the models to based on characteristics of the passenger.  We will be removing the name of the individual, ticket number, cabin and home/destination variables as they do not have any predictive value.  The lifeboat and body identification number will also be dropped because they don't tell us much about the person.  We will also only select the records that have complete information.  Some of the variables are closely correlated (i.e. pclass and fare) but I have chosen to leave them in.
+
+```{r}
+study.variables <- c('pclass', 'survived', 'sex', 'age', 'sibsp', 'parch', 'fare', 'embarked')
+# Select the study variables and drop all other variables
+study.data <- titanic[, study.variables]
+# Remove the observations with NA's
+study.data <- study.data[complete.cases(study.data),]
+```
+
+The study dataset contains `r nrow(study.data)` and the `r ncol(study.data)` variables defined above. The study data was divided into training and testing sets using an 80/20 split. In order to make these results reproducible, a random number seed is defined which will be used throughout this study. 
+
+```{r, message=FALSE}
+library(caret)
+# Set the random number seed
+study.seed <- 12345
+set.seed(study.seed)
+in.train <- createDataPartition(y=study.data$survived, times=1, p=0.80, list=FALSE)
+training <- study.data[in.train,]
+test <- study.data[-in.train,]
+```
+
+# Machine Learning Models
+
+I will be using R's caret package to develop six models.  Each model will generate 30 results.  A common random number seed to ensure reproducibility.  We will compare the average accuracy and kappa.
+
+## Train Controls
+
+Ten fold cross validation is considered the standard that many data scientists use.  Consequently I decided initially to use 10 fold cross validation repeated 3 times.  This will generate 30 models.  I selected five other combinations that also would result in 30 models.
+
+```{r, message=FALSE}
+library(caret)
+# Set up 6 controls that result in 30 models
+control1 <- trainControl(method='repeatedcv', number=10, repeats=3)
+control2 <- trainControl(method='repeatedcv', number=3, repeats=10)
+control3 <- trainControl(method='repeatedcv', number=5, repeats=6)
+control4 <- trainControl(method='repeatedcv', number=6, repeats=5)
+control5 <- trainControl(method='repeatedcv', number=15, repeats=2)
+control6 <- trainControl(method='repeatedcv', number=2, repeats=15)
+```
+
+Now that the train controls have been specified I can train the models and test their predictive power.
+
+## Model 1: 10 Folds, Repeated 3 Times
+
+```{r, message=FALSE}
+# The random number seed used throughout this study
+study.seed <- 12345
+set.seed(study.seed)
+start <- proc.time()
+model1 <- train(survived~., training, method='rf', trControl=control1)
+pred1 <- predict(model1, newdata=test)
+cm1 <- confusionMatrix(pred1, test$survived)
+model1.time <- proc.time() - start
+cm1
+```
+
+## Model 2: 3 Folds, Repeated 10 Times
+
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+model2 <- train(survived~., training, method='rf', trControl=control2)
+pred2 <- predict(model2, newdata=test)
+cm2 <- confusionMatrix(pred2, test$survived)
+model2.time <- proc.time() - start
+cm2
+```
+
+## Model 3: 5 Folds, Repeated 6 Times
+
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+model3 <- train(survived~., training, method='rf', trControl=control3)
+pred3 <- predict(model3, newdata=test)
+cm3 <- confusionMatrix(pred3, test$survived)
+model3.time <- proc.time() - start
+cm3
+```
+
+## Model 4: 5 Folds, Repeated 5 Times
+
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+model4 <- train(survived~., training, method='rf', trControl=control4)
+pred4 <- predict(model1, newdata=test)
+cm4 <- confusionMatrix(pred4, test$survived)
+model4.time <- proc.time() - start
+cm4
+```
+
+## Model 5: 15 Folds, Repeated 2 Times
+
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+model5 <- train(survived~., training, method='rf', trControl=control5)
+pred5 <- predict(model5, newdata=test)
+cm5 <- confusionMatrix(pred5, test$survived)
+model5.time <- proc.time() - start
+cm5
+```
+
+## Model 6: 2 Fold 15 Repeat
+
+```{r, message=FALSE}
+set.seed(study.seed)
+start <- proc.time()
+model6 <- train(survived~., training, method='rf', trControl=control6)
+pred6 <- predict(model6, newdata=test)
+cm6 <- confusionMatrix(pred6, test$survived)
+model6.time <- proc.time() - start
+cm6
+```
+
+# Comparison of Machine Learning Models
+
+Now that the models have been built and predictions have been made we can compare the models.  We will compare the accuracy of the model prediction against the execution time.  The question we hope to answer is what is the ideal combination of folds and repeats that generate the best results in the least amount of time.
+
+```{r}
+model.name <- c('10 Fold Repeated 3 Times', '3 Fold Repeated 10 Times', '5 Fold Repeated 6 Times', '6 Fold Repeated 5 Times', '15 Fold Repeated 2 Times', '2 Fold Repeated 15 Times')
+
+accuracy <- c(cm1$overall[1], cm2$overall[1], cm3$overall[1], cm4$overall[1], cm5$overall[1], cm6$overall[1])
+
+kappa <- c(cm2$overall[2], cm2$overall[2], cm3$overall[2], cm4$overall[2], cm5$overall[2], cm6$overall[2])
+
+elapsed <- c(model1.time[3], model2.time[3], model3.time[3], model4.time[3], model5.time[3], model6.time[3])
+
+folds <- c(10,3,5,6,15,2)
+
+repeats <- c(3,10,6,5,2,15)
+
+compare <- data.frame(model.name, accuracy, kappa, elapsed, folds, repeats)
+```
+
+Now that we have compiled some measures, let's examine the models on the basis of accuracy and executions time.  First we observe that accuracy ranges between `r round(min(compare$accuracy)*100,0)` and `r round(max(compare$accuracy)*100,0)` percent.  We also observe execution times ranging from `r round(min(compare$elapsed),0)` to `r round(max(compare$elapsed),0)` seconds.  
+
+```{r, echo=FALSE}
+ggplot(compare, aes(elapsed, accuracy*100, color=model.name)) + 
+  geom_point(stat='identity') + 
+  ggtitle('Figure 1: Model Accuracy by Elapsed Time') + 
+  xlab('Elapsed Time (seconds)') + 
+  ylab('Prediction accuracy (out of 100)') + 
+  scale_colour_brewer(name='Model Name', palette='Set1')
+```
+
+The amount of execution time generally increases as the number of folds increase.  It is intesting to note that the 15 fold repeated 2 times model took a little less time than the 10 fold repeated 3 times model.  We observe that the 5 fold repeated 6 times model preformed the best in terms of accuracy. 
+
+```{r, echo=FALSE}
+ggplot(compare, aes(elapsed, kappa*100, color=model.name)) + 
+  geom_point(stat='identity') + 
+  ggtitle("Figure 2: Model's Kappa by Elapsed Time") + 
+  xlab('Elapsed Time (seconds)') + 
+  ylab("Cohen's Kappa (out of 100)") + 
+  scale_colour_brewer(name='Model Name', palette='Set1')
+```
+
+We observe that kappa ranges between `r round(min(compare$kappa)*100,0)` and `r round(max(compare$kappa)*100,0)` percent.  Once again the 5 fold repeated 6 times model out preformed all the other models in terms of prediction accuracy.
+
+Now let's construct a model prediction performance measure that averages the two preceeding accuracy measures and expresses it as a percentage:
+
+```{r}
+compare$performance <- ((compare$accuracy + compare$kappa)/2)*100
+```
+
+## The Accuracy / Execution Time Tradeoff
+
+
+# Appendix
+
+## Titanic Survivor Dataset
+
+```{r, echo=FALSE, message=FALSE}
+if (!require("DT")) devtools::install_github("rstudio/DT")
+library(DT)
+datatable(titanic, options = list(iDisplayLength = 10))
+```
+
+## Machine Learning Models
+
+```{r}
+model1
+model2
+model3
+model4
+model5
+model6
+```
+
+## Session Info
+```{r}
+sessionInfo()
+```
