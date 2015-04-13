@@ -218,13 +218,15 @@ knn.confusion.matrix
 
 Now that the models have been build we can examing the results.  First we need to compare the accuracy of the model.  We will examine both the accuracy and Cohen's kappa.
 
+First I will assemble the runtime information into a data frame.  I will need to scale up the baseline time because the runtimes for the other models represent the time needed to make 30 models.  I will to this by multiplying the baseline runtime by thirty.  There was also time taken to program the model.  I will be generous and say it took a minute to program the baseline survivor rule function:
+
 ```{r}
-baseline.program.time <- 1
+baseline.program.time <- 60
 baseline.scaler <- study.folds * study.repeats
 
 model.name <- c('Baseline', 'Gradient Boosted Machine', 'K Nearest Neighbors', 'Learning Vector Quantization', 'Naive Bayes', 'Neural Networks', 'Random Forest', 'Classification and Regression Tree','Support Vector Machine')
 
-acuracy <- c(baseline.confusion.matrix$overall[1], gbm.confusion.matrix$overall[1], knn.confusion.matrix$overall[1],lvq.confusion.matrix$overall[1], nb.confusion.matrix$overall[1], nnet.confusion.matrix$overall[1], rf.confusion.matrix$overall[1], rpart.confusion.matrix$overall[1], svm.confusion.matrix$overall[1])
+accuracy <- c(baseline.confusion.matrix$overall[1], gbm.confusion.matrix$overall[1], knn.confusion.matrix$overall[1],lvq.confusion.matrix$overall[1], nb.confusion.matrix$overall[1], nnet.confusion.matrix$overall[1], rf.confusion.matrix$overall[1], rpart.confusion.matrix$overall[1], svm.confusion.matrix$overall[1])
 
 kappa <- c(baseline.confusion.matrix$overall[2], gbm.confusion.matrix$overall[2], knn.confusion.matrix$overall[2],lvq.confusion.matrix$overall[2], nb.confusion.matrix$overall[2], nnet.confusion.matrix$overall[2], rf.confusion.matrix$overall[2], rpart.confusion.matrix$overall[2], svm.confusion.matrix$overall[2])
 
@@ -234,18 +236,52 @@ sys.self <- c((baseline.time[2]*baseline.scaler), gbm.time[2], knn.time[2], lvq.
 
 elapsed <- c((baseline.time[3]*baseline.scaler)+baseline.program.time, gbm.time[3], knn.time[3], lvq.time[3], nb.time[3], nnet.time[3], rf.time[3], rpart.time[3], svm.time[3])
 
-compare <- data.frame(model.name, acuracy, kappa, user.self, sys.self, elapsed)
+compare <- data.frame(model.name, accuracy, kappa, user.self, sys.self, elapsed)
 ```
 
-```{r, echo=FALSE}
-ggplot(data=compare, aes(x=model.name, y=acuracy*100)) + geom_bar(stat='identity') + coord_flip() + ggtitle('Figure 1: Model Acurately Predicted Survivorship') + theme(axis.title.x=element_blank(), axis.title.y=element_blank()) + scale_y_continuous(limits=c(0,100))
-```
+Five of the eight machine learning models out prefomed the baseline.  The Naive Bayes, Learning Vector Quantization and K Nearest Neighbors did not preform as well as the crude baseline rule.
 
 ```{r, echo=FALSE}
-ggplot(data=compare, aes(x=model.name, y=kappa*100)) + geom_bar(stat='identity') + coord_flip() + ggtitle("Figure 2: Cohen's Kappa") + theme(axis.title.x=element_blank(), axis.title.y=element_blank()) +  scale_y_continuous(limits=c(0,100)) + ylab('Percent')
+ggplot(data=compare, aes(x=model.name, y=accuracy*100, fill=model.name)) + geom_bar(stat='identity') + coord_flip() + ggtitle('Figure 1: Model Accurately Predicted Survivorship') + theme(axis.title.x=element_blank(), axis.title.y=element_blank(), legend.position='none') + scale_y_continuous(limits=c(0,100)) + scale_fill_brewer(palette='Set1')
 ```
+
+When looking at the more concervative kappa measure, the same five of the machine learning algorythms outpreformed the baseline model.
+
+```{r, echo=FALSE}
+ggplot(data=compare, aes(x=model.name, y=kappa*100, fill=model.name)) + geom_bar(stat='identity') + coord_flip() + ggtitle("Figure 2: Cohen's Kappa") + theme(axis.title.x=element_blank(), axis.title.y=element_blank(), legend.position='none') +  scale_y_continuous(limits=c(0,100)) + ylab('Percent') + scale_fill_brewer(palette='Set1')
+```
+
+The is considerable difference in the amount of time needed to generate the models.  Remember we assumed that it took one minute to program the baseline model.
+
+
+```{r, echo=FALSE}
+ggplot(data=compare, aes(x=model.name, y=elapsed, fill=model.name)) + geom_bar(stat='identity') + coord_flip() + ggtitle('Figure 3: Execution Time (in seconds)') + theme(axis.title.x=element_blank(), axis.title.y=element_blank(), legend.position='none') +  scale_y_continuous(limits=c(0,100)) + scale_fill_brewer(palette='Set1')
+```
+
+Now that we have a data set we can compare on I will be creating some index numbers.  The first will be an accuracy index which is an equal weighting of both accuracy measures.  The second will be a speed index which is based on the execution time.  Each index is computed relative to the baseline and scaled so the baseline equals 100.
 
 ```{r}
+compare <- compare %>%
+  mutate(accuracy.index = ((accuracy + kappa)/2)) %>%
+  mutate(speed.index = elapsed)
+
+baseline.accuracy <- compare[compare$model.name=='Baseline',]$accuracy.index
+
+baseline.speed <- compare[compare$model.name=='Baseline',]$speed.index
+
+compare <- compare %>%
+  mutate(accuracy.index = (accuracy.index/baseline.accuracy)*100) %>%
+  mutate(speed.index = (compare$speed.index/baseline.speed)*100)
+```
+
+Now we can examine the model's preformance in terms of speed and accuracy:
+
+```{r, echo=FALSE}
+ggplot(data=compare, aes(x=speed.index, y=accuracy.index, color=model.name)) + geom_point(stat='identity') + ggtitle('Figure 4: Accuracy vs Execution Time') + xlab('Speed Index (Baseline=100)') + ylab('Accuracy Index (Baseline=100)') + scale_color_brewer(palette='Set1') + guides(color=guide_legend(title='Model Name'))
+```
+
+
+```{r, echo=FALSE, eval=FALSE}
 results <- resamples(
   list(
     GBM=gbm.model, 
@@ -263,16 +299,8 @@ summary(results)
 ```
 
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, eval=FALSE}
 bwplot(results)
-```
-
-Now let's compare the runtimes of these models.  First I will assemble the runtime information into a data frame.  I will need to scale up the baseline time because the runtimes for the other models represent the time needed to make 30 models.  I will to this by multiplying the baseline runtime by thirty.  There was also time taken to program the model.  I will be generous and say it took a minute to program the survivor rule function:
-
-```{r}
-
-
-runtimes <- data.frame(model.name, user.self, sys.self, elapsed)
 ```
 
 # Appendix
@@ -298,10 +326,10 @@ rpart.model
 svm.model
 ```
 
-## Run Times
+## Comparison Values
 
 ```{r, echo=FALSE}
-datatable(runtimes, options = list(iDisplayLength = 9, searching=FALSE, paging=FALSE))
+datatable(compare, options = list(iDisplayLength = 9, searching=FALSE, paging=FALSE))
 ```
 
 ## Session Info
