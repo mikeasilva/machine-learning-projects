@@ -57,7 +57,7 @@ study.data <- titanic[, study.variables]
 study.data <- study.data[complete.cases(study.data),]
 ```
 
-The study dataset contains `r nrow(study.data)` and the `r ncol(study.data)` variables defined above.  The study data was divided into training and testing sets using an 80/20 split. In order to make these results reproducible, a random number seed is defined which will be used throughout this study.
+The study dataset contains `r nrow(study.data)` and the `r ncol(study.data)` variables defined above.  The study data was divided into training and test sets using an 80/20 split. In order to make these results reproducible, a random number seed is defined which will be used throughout this study.
 
 ```{r, message=FALSE}
 library(caret)
@@ -66,7 +66,7 @@ study.seed <- 12345
 set.seed(study.seed)
 in.train <- createDataPartition(y=study.data$survived, times=1, p=0.80, list=FALSE)
 training <- study.data[in.train,]
-testing <- study.data[-in.train,]
+test <- study.data[-in.train,]
 ```
 
 # Baseline Model - Women and Children First
@@ -89,7 +89,7 @@ I will then apply the baseline model to form predictions:
 
 ```{r}
 start <- proc.time()
-baseline.predictions <- testing %>%
+baseline.predictions <- test %>%
   select(age, sex) %>%
   apply(., 1, function(x){survived.rule(x[1],x[2])})
 baseline.time <- proc.time() - start
@@ -98,7 +98,7 @@ baseline.time <- proc.time() - start
 I will then evaluate the accuracy of this baseline model by comparing the number of times it correctly predicted the outcome relative to the total number of cases:  
 
 ```{r, message=FALSE}
-baseline.confusion.matrix <- testing %>%
+baseline.confusion.matrix <- test %>%
   select(survived) %>%
   cbind(., baseline.predictions) %>%
   mutate(truth = as.character(survived)) %>%
@@ -131,8 +131,8 @@ study.control <- trainControl(method='repeatedcv', number=study.folds, repeats=s
 set.seed(study.seed)
 start <- proc.time()
 rf.model <- train(survived~., training, method='rf', trControl=study.control)
-rf.prediction <- predict(rf.model, newdata=testing)
-rf.confusion.matrix <- confusionMatrix(rf.prediction, testing$survived)
+rf.prediction <- predict(rf.model, newdata=test)
+rf.confusion.matrix <- confusionMatrix(rf.prediction, test$survived)
 rf.time <- proc.time() - start
 rf.confusion.matrix
 ```
@@ -142,8 +142,8 @@ rf.confusion.matrix
 set.seed(study.seed)
 start <- proc.time()
 lvq.model <- train(survived~., study.data, method='lvq', trControl=study.control)
-lvq.prediction <- predict(lvq.model, newdata=testing)
-lvq.confusion.matrix <- confusionMatrix(lvq.prediction, testing$survived)
+lvq.prediction <- predict(lvq.model, newdata=test)
+lvq.confusion.matrix <- confusionMatrix(lvq.prediction, test$survived)
 lvq.time <- proc.time() - start
 lvq.confusion.matrix
 ```
@@ -153,8 +153,8 @@ lvq.confusion.matrix
 set.seed(study.seed)
 start <- proc.time()
 svm.model <- train(survived~., study.data, method='svmRadial', trControl=study.control)
-svm.prediction <- predict(svm.model, newdata=testing)
-svm.confusion.matrix <- confusionMatrix(svm.prediction, testing$survived)
+svm.prediction <- predict(svm.model, newdata=test)
+svm.confusion.matrix <- confusionMatrix(svm.prediction, test$survived)
 svm.time <- proc.time() - start
 svm.confusion.matrix
 ```
@@ -164,8 +164,8 @@ svm.confusion.matrix
 set.seed(study.seed)
 start <- proc.time()
 gbm.model <- train(survived~., study.data, method='gbm', trControl=study.control, verbose=FALSE)
-gbm.prediction <- predict(gbm.model, newdata=testing)
-gbm.confusion.matrix <- confusionMatrix(gbm.prediction, testing$survived)
+gbm.prediction <- predict(gbm.model, newdata=test)
+gbm.confusion.matrix <- confusionMatrix(gbm.prediction, test$survived)
 gbm.time <- proc.time() - start
 gbm.confusion.matrix
 ```
@@ -175,8 +175,8 @@ gbm.confusion.matrix
 set.seed(study.seed)
 start <- proc.time()
 nb.model <- train(survived~., study.data, method='nb', trControl=study.control)
-nb.prediction <- predict(nb.model, newdata=testing)
-nb.confusion.matrix <- confusionMatrix(nb.prediction, testing$survived)
+nb.prediction <- predict(nb.model, newdata=test)
+nb.confusion.matrix <- confusionMatrix(nb.prediction, test$survived)
 nb.time <- proc.time() - start
 nb.confusion.matrix
 ```
@@ -186,8 +186,8 @@ nb.confusion.matrix
 set.seed(study.seed)
 start <- proc.time()
 nnet.model <- train(survived~., study.data, method='nnet', trControl=study.control)
-nnet.prediction <- predict(nnet.model, newdata=testing)
-nnet.confusion.matrix <- confusionMatrix(nnet.prediction, testing$survived)
+nnet.prediction <- predict(nnet.model, newdata=test)
+nnet.confusion.matrix <- confusionMatrix(nnet.prediction, test$survived)
 nnet.time <- proc.time() - start
 nnet.confusion.matrix
 ```
@@ -197,8 +197,8 @@ nnet.confusion.matrix
 set.seed(study.seed)
 start <- proc.time()
 rpart.model <- train(survived~., study.data, method='rpart', trControl=study.control)
-rpart.prediction <- predict(rpart.model, newdata=testing)
-rpart.confusion.matrix <- confusionMatrix(rpart.prediction, testing$survived)
+rpart.prediction <- predict(rpart.model, newdata=test)
+rpart.confusion.matrix <- confusionMatrix(rpart.prediction, test$survived)
 rpart.time <- proc.time() - start
 rpart.confusion.matrix
 ```
@@ -208,8 +208,8 @@ rpart.confusion.matrix
 set.seed(study.seed)
 start <- proc.time()
 knn.model <- train(survived~., study.data, method='knn', trControl=study.control)
-knn.prediction <- predict(knn.model, newdata=testing)
-knn.confusion.matrix <- confusionMatrix(knn.prediction, testing$survived)
+knn.prediction <- predict(knn.model, newdata=test)
+knn.confusion.matrix <- confusionMatrix(knn.prediction, test$survived)
 knn.time <- proc.time() - start
 knn.confusion.matrix
 ```
