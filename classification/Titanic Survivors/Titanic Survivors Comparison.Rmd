@@ -280,29 +280,32 @@ Now we can examine the model's preformance in terms of speed and accuracy:
 ggplot(data=compare, aes(x=speed.index, y=accuracy.index, color=model.name)) + geom_point(stat='identity') + ggtitle('Figure 4: Accuracy vs Execution Time') + xlab('Speed Index (Baseline=100)') + ylab('Accuracy Index (Baseline=100)') + scale_color_brewer(palette='Set1') + guides(color=guide_legend(title='Model Name'))
 ```
 
+I you only cared about the accuracy this study suggest the Gradient Boosted Machine would be a good choice.  However if you only cared about speed the K Nearest Neighbors approach would be the best one to use.  In order to evaluate which model would be the best along the accuracy vs speed tradeoff space I will weigh the index values
 
-```{r, echo=FALSE, eval=FALSE}
-results <- resamples(
-  list(
-    GBM=gbm.model, 
-    KNN=knn.model, 
-    LVQ=lvq.model, 
-    NB=nb.model, 
-    NNET=nnet.model, 
-    RF=rf.model, 
-    RPART=rpart.model, 
-    SVM=svm.model
-  )
-)
+```{r}
 
-summary(results)
+recommendation <- function(accuracy.weight){
+  speed.weight <- 1- accuracy.weight
+  accuracy.component <- compare$accuracy.index * accuracy.weight
+  speed.component <- compare$speed.index * speed.weight
+  score <- accuracy.component - speed.component
+  compare[order(-score),]$model.name
+}
+
+for(i in seq(0, 1, 0.1)){
+  row <- data.frame(model=recommendation(i), accuracy=i*100, rank=1:9)
+  if(!exists('recommendations'))
+    recommendations <- row
+  else
+    recommendations <- rbind(recommendations, row)
+}
+
+# library(tidyr)
+# x <- recommendations %>% spread(accuracy, rank)
+# row.names(x) <- x[,1]
+# x <- data.matrix(x[,-1])
+# heatmap(x, Rowv=NA, Colv=NA)
 ```
-
-
-```{r, echo=FALSE, eval=FALSE}
-bwplot(results)
-```
-
 # Appendix
 
 ## Titanic Survivor Dataset
@@ -324,6 +327,30 @@ nnet.model
 rf.model
 rpart.model
 svm.model
+```
+
+### Resampling Results
+
+```{r}
+results <- resamples(
+  list(
+    GBM=gbm.model, 
+    KNN=knn.model, 
+    LVQ=lvq.model, 
+    NB=nb.model, 
+    NNET=nnet.model, 
+    RF=rf.model, 
+    RPART=rpart.model, 
+    SVM=svm.model
+  )
+)
+
+summary(results)
+```
+
+
+```{r, echo=FALSE}
+bwplot(results)
 ```
 
 ## Comparison Values
