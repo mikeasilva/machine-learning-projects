@@ -81,11 +81,11 @@ Ten fold cross validation is considered the standard that many data scientists u
 library(caret)
 # Set up 6 controls that result in 30 models
 control1 <- trainControl(method='repeatedcv', number=10, repeats=3)
-control2 <- trainControl(method='repeatedcv', number=3, repeats=10)
-control3 <- trainControl(method='repeatedcv', number=5, repeats=6)
-control4 <- trainControl(method='repeatedcv', number=6, repeats=5)
-control5 <- trainControl(method='repeatedcv', number=15, repeats=2)
-control6 <- trainControl(method='repeatedcv', number=2, repeats=15)
+control2 <- trainControl(method='repeatedcv', number=2, repeats=15)
+control3 <- trainControl(method='repeatedcv', number=3, repeats=10)
+control4 <- trainControl(method='repeatedcv', number=5, repeats=6)
+control5 <- trainControl(method='repeatedcv', number=6, repeats=5)
+control6 <- trainControl(method='repeatedcv', number=15, repeats=2)
 ```
 
 Now that the train controls have been specified I can train the models and test their predictive power.
@@ -104,7 +104,7 @@ model1.time <- proc.time() - start
 cm1
 ```
 
-## Model 2: 3 Folds, Repeated 10 Times
+## Model 2: 2 Folds, Repeated 15 Times
 
 ```{r, message=FALSE}
 set.seed(study.seed)
@@ -116,7 +116,7 @@ model2.time <- proc.time() - start
 cm2
 ```
 
-## Model 3: 5 Folds, Repeated 6 Times
+## Model 3: 3 Folds, Repeated 10 Times
 
 ```{r, message=FALSE}
 set.seed(study.seed)
@@ -128,7 +128,7 @@ model3.time <- proc.time() - start
 cm3
 ```
 
-## Model 4: 5 Folds, Repeated 5 Times
+## Model 4: 5 Folds, Repeated 6 Times
 
 ```{r, message=FALSE}
 set.seed(study.seed)
@@ -140,7 +140,7 @@ model4.time <- proc.time() - start
 cm4
 ```
 
-## Model 5: 15 Folds, Repeated 2 Times
+## Model 5: 6 Folds, Repeated 5 Times
 
 ```{r, message=FALSE}
 set.seed(study.seed)
@@ -152,7 +152,7 @@ model5.time <- proc.time() - start
 cm5
 ```
 
-## Model 6: 2 Fold 15 Repeat
+## Model 6: 15 Folds, Repeated 2 Times
 
 ```{r, message=FALSE}
 set.seed(study.seed)
@@ -169,7 +169,7 @@ cm6
 Now that the models have been built and predictions have been made we can compare the models.  We will compare the accuracy of the model prediction against the execution time.  The question we hope to answer is what is the ideal combination of folds and repeats that generate the best results in the least amount of time.
 
 ```{r}
-model.name <- c('10 Fold Repeated 3 Times', '3 Fold Repeated 10 Times', '5 Fold Repeated 6 Times', '6 Fold Repeated 5 Times', '15 Fold Repeated 2 Times', '2 Fold Repeated 15 Times')
+model.name <- c('10 Fold Repeated 3 Times', '2 Fold Repeated 15 Times', '3 Fold Repeated 10 Times', '5 Fold Repeated 6 Times', '6 Fold Repeated 5 Times', '15 Fold Repeated 2 Times')
 
 accuracy <- c(cm1$overall[1], cm2$overall[1], cm3$overall[1], cm4$overall[1], cm5$overall[1], cm6$overall[1])
 
@@ -187,26 +187,28 @@ compare <- data.frame(model.name, accuracy, kappa, elapsed, folds, repeats)
 Now that we have compiled some measures, let's examine the models on the basis of accuracy and executions time.  First we observe that accuracy ranges between `r round(min(compare$accuracy)*100,0)` and `r round(max(compare$accuracy)*100,0)` percent.  We also observe execution times ranging from `r round(min(compare$elapsed),0)` to `r round(max(compare$elapsed),0)` seconds.  
 
 ```{r, echo=FALSE}
-ggplot(compare, aes(elapsed, accuracy*100, color=model.name)) + 
-  geom_point(stat='identity') + 
-  ggtitle('Figure 1: Model Accuracy by Elapsed Time') + 
-  xlab('Elapsed Time (seconds)') + 
-  ylab('Prediction accuracy (out of 100)') + 
+ggplot(compare, aes(x=model.name, y=accuracy*100, fill=model.name)) + 
+  geom_bar(stat='identity') + 
+  ggtitle('Figure 1: Prediciton Accuracy by Model') + 
+  ylab('Prediction Accuracy (out of 100)') + 
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), axis.title.x = element_blank(), legend.title=element_blank()) +
   scale_colour_brewer(name='Model Name', palette='Set1')
 ```
 
 The amount of execution time generally increases as the number of folds increase.  It is intesting to note that the 15 fold repeated 2 times model took a little less time than the 10 fold repeated 3 times model.  We observe that the 5 fold repeated 6 times model preformed the best in terms of accuracy. 
 
 ```{r, echo=FALSE}
-ggplot(compare, aes(elapsed, kappa*100, color=model.name)) + 
-  geom_point(stat='identity') + 
-  ggtitle("Figure 2: Model's Kappa by Elapsed Time") + 
-  xlab('Elapsed Time (seconds)') + 
+ggplot(compare, aes(x=model.name, y=kappa*100, fill=model.name)) + 
+  geom_bar(stat='identity') + 
+  ggtitle('Figure 2: Prediciton Kappa by Model') + 
   ylab("Cohen's Kappa (out of 100)") + 
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), axis.title.x = element_blank(), legend.title=element_blank()) +
   scale_colour_brewer(name='Model Name', palette='Set1')
 ```
 
 We observe that kappa ranges between `r round(min(compare$kappa)*100,0)` and `r round(max(compare$kappa)*100,0)` percent.  Once again the 5 fold repeated 6 times model out preformed all the other models in terms of prediction accuracy.
+
+## The Accuracy / Execution Time Tradeoff
 
 Now let's construct a model prediction performance measure that averages the two preceeding accuracy measures and expresses it as a percentage:
 
@@ -214,8 +216,18 @@ Now let's construct a model prediction performance measure that averages the two
 compare$performance <- ((compare$accuracy + compare$kappa)/2)*100
 ```
 
-## The Accuracy / Execution Time Tradeoff
+Let's compare this performance measure relative to the execution time:
 
+```{r, echo=FALSE}
+ggplot(compare, aes(elapsed, performance, color=model.name)) + 
+  geom_point(stat='identity') + 
+  ggtitle('Figure 4: Model Preformance by Elapsed Time') + 
+  xlab('Elapsed Time (seconds)') + 
+  ylab('Model Accuracy (out of 100)') + 
+  scale_colour_brewer(name='Model Name', palette='Set1')
+```
+
+Execution time can very depending on the system the analysis is run on.
 
 # Appendix
 
@@ -225,6 +237,12 @@ compare$performance <- ((compare$accuracy + compare$kappa)/2)*100
 if (!require("DT")) devtools::install_github("rstudio/DT")
 library(DT)
 datatable(titanic, options = list(iDisplayLength = 10))
+```
+
+## Titanic Survivor Dataset
+
+```{r, echo=FALSE, message=FALSE}
+datatable(compare, options = list(iDisplayLength = 10))
 ```
 
 ## Machine Learning Models
