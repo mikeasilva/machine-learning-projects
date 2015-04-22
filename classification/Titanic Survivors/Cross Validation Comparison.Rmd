@@ -2,13 +2,13 @@
 title: "Titanic Survivor Case Study"
 subtitle: "A Comparison of Cross Validation Parameters"
 author: "Mike Silva"
-date: "April 9th, 2015"
+date: "April 2015"
 output: html_document
 ---
 
 # Introduction
 
-In this study we compare random forest models built in R using the caret package that predict the likelihood of emerging as a Titanic survivor.  Different cross validation parameters will be used for each model.  We then compare the models in terms of accuracy and execution time.
+In this study we compare random forest models built in R using the caret package that predict the likelihood of emerging as a Titanic survivor.  Different cross validation parameters will be used to create six models.  We then compare the models in terms of accuracy and execution time.
 
 ## Data Used in This Study
 
@@ -92,7 +92,7 @@ Now that the train controls have been specified I can train the models and test 
 
 ## Model 1: 10 Folds, Repeated 3 Times
 
-```{r, message=FALSE}
+```{r, message=FALSE, comment=NA}
 # The random number seed used throughout this study
 study.seed <- 12345
 set.seed(study.seed)
@@ -106,7 +106,7 @@ cm1
 
 ## Model 2: 2 Folds, Repeated 15 Times
 
-```{r, message=FALSE}
+```{r, message=FALSE, comment=NA}
 set.seed(study.seed)
 start <- proc.time()
 model2 <- train(survived~., training, method='rf', trControl=control2)
@@ -118,7 +118,7 @@ cm2
 
 ## Model 3: 3 Folds, Repeated 10 Times
 
-```{r, message=FALSE}
+```{r, message=FALSE, comment=NA}
 set.seed(study.seed)
 start <- proc.time()
 model3 <- train(survived~., training, method='rf', trControl=control3)
@@ -130,7 +130,7 @@ cm3
 
 ## Model 4: 5 Folds, Repeated 6 Times
 
-```{r, message=FALSE}
+```{r, message=FALSE, comment=NA}
 set.seed(study.seed)
 start <- proc.time()
 model4 <- train(survived~., training, method='rf', trControl=control4)
@@ -142,7 +142,7 @@ cm4
 
 ## Model 5: 6 Folds, Repeated 5 Times
 
-```{r, message=FALSE}
+```{r, message=FALSE, comment=NA}
 set.seed(study.seed)
 start <- proc.time()
 model5 <- train(survived~., training, method='rf', trControl=control5)
@@ -154,7 +154,7 @@ cm5
 
 ## Model 6: 15 Folds, Repeated 2 Times
 
-```{r, message=FALSE}
+```{r, message=FALSE, comment=NA}
 set.seed(study.seed)
 start <- proc.time()
 model6 <- train(survived~., training, method='rf', trControl=control6)
@@ -184,29 +184,40 @@ repeats <- c(3,10,6,5,2,15)
 compare <- data.frame(model.name, accuracy, kappa, elapsed, folds, repeats)
 ```
 
-Now that we have compiled some measures, let's examine the models on the basis of accuracy and executions time.  First we observe that accuracy ranges between `r round(min(compare$accuracy)*100,0)` and `r round(max(compare$accuracy)*100,0)` percent.  We also observe execution times ranging from `r round(min(compare$elapsed),0)` to `r round(max(compare$elapsed),0)` seconds.  
+Now that we have compiled some measures, let's examine the models on the basis of accuracy and executions time.  First we observe that accuracy ranges between `r round(min(compare$accuracy)*100,0)` and `r round(max(compare$accuracy)*100,0)` percent.
 
 ```{r, echo=FALSE}
 ggplot(compare, aes(x=model.name, y=accuracy*100, fill=model.name)) + 
   geom_bar(stat='identity') + 
   ggtitle('Figure 1: Prediciton Accuracy by Model') + 
   ylab('Prediction Accuracy (out of 100)') + 
-  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), axis.title.x = element_blank(), legend.title=element_blank()) +
-  scale_colour_brewer(name='Model Name', palette='Set1')
+  scale_y_continuous(limits=c(0, 100)) + 
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), axis.title.x = element_blank()) +
+  scale_fill_brewer(name='Model Name', palette='Set1')
 ```
 
-The amount of execution time generally increases as the number of folds increase.  It is intesting to note that the 15 fold repeated 2 times model took a little less time than the 10 fold repeated 3 times model.  We observe that the 5 fold repeated 6 times model preformed the best in terms of accuracy. 
+We observe that kappa ranges between `r round(min(compare$kappa)*100,0)` and `r round(max(compare$kappa)*100,0)` percent.
 
 ```{r, echo=FALSE}
 ggplot(compare, aes(x=model.name, y=kappa*100, fill=model.name)) + 
   geom_bar(stat='identity') + 
   ggtitle('Figure 2: Prediciton Kappa by Model') + 
   ylab("Cohen's Kappa (out of 100)") + 
-  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), axis.title.x = element_blank(), legend.title=element_blank()) +
-  scale_colour_brewer(name='Model Name', palette='Set1')
+  scale_y_continuous(limits=c(0, 100)) + 
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), axis.title.x = element_blank()) +
+  scale_fill_brewer(name='Model Name', palette='Set1')
 ```
 
-We observe that kappa ranges between `r round(min(compare$kappa)*100,0)` and `r round(max(compare$kappa)*100,0)` percent.  Once again the 5 fold repeated 6 times model out preformed all the other models in terms of prediction accuracy.
+We also observe execution times ranging from `r round(min(compare$elapsed),0)` to `r round(max(compare$elapsed),0)` seconds.  The amount of execution time generally increases as the number of folds increase.  It is intesting to note that the 15 fold repeated 2 times model took a little less time than the 10 fold repeated 3 times model.
+
+```{r, echo=FALSE}
+ggplot(compare, aes(x=model.name, y=elapsed, fill=model.name)) + 
+  geom_bar(stat='identity') + 
+  ggtitle('Figure 3: Execution Times by Model') + 
+  ylab('Seconds') + 
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank(), axis.title.x = element_blank()) +
+  scale_fill_brewer(name='Model Name', palette='Set1')
+```
 
 ## The Accuracy / Execution Time Tradeoff
 
@@ -216,7 +227,7 @@ Now let's construct a model prediction performance measure that averages the two
 compare$performance <- ((compare$accuracy + compare$kappa)/2)*100
 ```
 
-Let's compare this performance measure relative to the execution time:
+Let's compare this performance measure relative to the execution time to observe the tradeoff between accuracy and execution time.  We observe there is not much of a difference in the accuracy.
 
 ```{r, echo=FALSE}
 ggplot(compare, aes(elapsed, performance, color=model.name)) + 
@@ -224,6 +235,7 @@ ggplot(compare, aes(elapsed, performance, color=model.name)) +
   ggtitle('Figure 4: Model Preformance by Elapsed Time') + 
   xlab('Elapsed Time (seconds)') + 
   ylab('Model Accuracy (out of 100)') + 
+  scale_y_continuous(limits=c(0, 100)) + 
   scale_colour_brewer(name='Model Name', palette='Set1')
 ```
 
@@ -239,7 +251,7 @@ library(DT)
 datatable(titanic, options = list(iDisplayLength = 10))
 ```
 
-## Titanic Survivor Dataset
+## Model Comparison Statistics
 
 ```{r, echo=FALSE, message=FALSE}
 datatable(compare, options = list(iDisplayLength = 10))
@@ -247,7 +259,7 @@ datatable(compare, options = list(iDisplayLength = 10))
 
 ## Machine Learning Models
 
-```{r}
+```{r, comment=NA}
 model1
 model2
 model3
@@ -257,6 +269,6 @@ model6
 ```
 
 ## Session Info
-```{r}
+```{r, comment=NA}
 sessionInfo()
 ```
